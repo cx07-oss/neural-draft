@@ -2,6 +2,7 @@
 __pycache__/
 *.sqlite3*
 .env
+*.log
 test-artifacts/
 
 demo-video/*.mp4

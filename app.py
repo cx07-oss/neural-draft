@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from assessment import assess
-from content import ACTIONS, CASE, EFFECTS, EVIDENCE, FRONTS, RUBRIC, deck, make_card, resolve_play, winner
+from content import ACTIONS, CASE, CHOICES, EFFECTS, EVIDENCE, FRONTS, PATTERNS, RESPONSES, RUBRIC, deck, forged_record, make_card, resolve_play, strategy_observations, winner
 
 ROOT = Path(__file__).parent
 DB = os.getenv("NEURAL_DB", str(ROOT / "neural.sqlite3"))
@@ -67,6 +67,8 @@ def profile(token):
     with db() as conn:
         cards = [json.loads(r[0]) for r in conn.execute("SELECT payload FROM cards WHERE player=? ORDER BY rowid DESC", (token,))]
         attempt = conn.execute("SELECT * FROM attempts WHERE player=? AND card IS NULL ORDER BY rowid DESC LIMIT 1", (token,)).fetchone()
+    for card in cards:
+        card["effect"] = EFFECTS[card["archetype"]]
     return {"nickname": player["nickname"], "cards": cards,
             "attempt": {"id": attempt["id"], "evidence": json.loads(attempt["evidence"]), "questions": json.loads(attempt["questions"])} if attempt else None}
 
@@ -84,7 +86,9 @@ async def index():
 
 @app.get("/api/config")
 async def config():
-    return {"evidence": EVIDENCE, "actions": ACTIONS, "rubric": RUBRIC, "case": CASE,
+    public_case = {**CASE, "clues": [{k: v for k, v in c.items() if k != "front"} for c in CASE["clues"]]}
+    return {"evidence": EVIDENCE, "actions": ACTIONS, "rubric": RUBRIC, "case": public_case,
+            "choices": CHOICES, "responses": RESPONSES, "patterns": PATTERNS,
             "effects": EFFECTS, "ai": bool(os.getenv("OPENAI_API_KEY")) and os.getenv("NEURAL_OFFLINE") != "1"}
 
 
@@ -151,15 +155,17 @@ class Ask(BaseModel):
 @app.post("/api/forge/ask")
 async def ask(body: Ask, x_player: str = Header(default="")):
     attempt = get_attempt(body.attempt, x_player)
+    if attempt["card"]:
+        raise HTTPException(409, "This card has already been forged.")
     q = body.question.lower()
     if any(w in q for w in ("vendor", "verify", "contact", "sign", "trust")):
-        answer = "Use the number in our internal directory, not the update email. I can ask the vendor to confirm both the release and expected signer. A valid signature alone isn't enough."
+        answer = "The address and ticket look familiar, but that account could be compromised. Our directory contact can confirm the new signer in about 15 minutes. The packaging-partner note is plausible, not confirmation."
     elif any(w in q for w in ("run", "affect", "production", "scope", "laptop", "isolate")):
-        answer = "Neither test laptop has run the file. Production is healthy. We can pause deployment, retain the evidence, and keep serving people while we check."
+        answer = "Neither staging laptop ran it. Dispatch retries are rising. Isolating staging delays release checks; a broad shutdown would stop live orders. The dispatch lead can bridge a short hold manually, at reduced throughput."
     elif any(w in q for w in ("urgent", "time", "deadline", "wait")):
-        answer = "The deadline came from the same unverified message. We have no independent sign of a queue failure. Urgency is a reason to check carefully, not skip verification."
+        answer = "The 10:00 peak is real and retries are rising, but we cannot confirm that this package fixes it. A 15-minute check costs delivery speed. Installing now risks introducing an unverified signer into dispatch."
     else:
-        answer = "I can help with the vendor's identity, the deadline, or which systems are affected. We have two test laptops, no execution yet, and a trusted vendor contact in the directory."
+        answer = "Ask about the vendor, the deadline or affected systems. I can organise the directory callback and manual dispatch bridge; each needs a named person and costs staff time."
     history = json.loads(attempt["questions"])[-4:] + [{"question": body.question, "answer": answer}]
     with db() as conn:
         conn.execute("UPDATE attempts SET questions=? WHERE id=?", (json.dumps(history), body.attempt))
@@ -168,7 +174,8 @@ async def ask(body: Ask, x_player: str = Header(default="")):
 
 class Forge(BaseModel):
     attempt: str
-    action: Literal["verify", "isolate", "install"]
+    action: Literal["verify", "isolate", "coordinate"]
+    focus: Literal["source", "claim"] = "source"
     reason: str = Field(min_length=8, max_length=400)
 
 
@@ -180,12 +187,13 @@ async def forge(body: Forge, x_player: str = Header(default="")):
             with db() as conn:
                 return json.loads(conn.execute("SELECT payload FROM cards WHERE id=?", (attempt["card"],)).fetchone()[0])
         inspected = json.loads(attempt["evidence"])
-        review = await assess(body.action, inspected, body.reason)
+        review = await assess(body.action, inspected, body.reason, body.focus)
         total = sum(review["scores"].values())
         evolution = "Luminous" if total >= 5 else "Focused" if total >= 3 else "Emerging"
         card = make_card(str(uuid.uuid4()), review["archetype"], identify(x_player)["nickname"], evolution)
         card["assessment"] = review
-        card["provenance"] = {"action": body.action, "reason": body.reason, "inspected": inspected, "questions": json.loads(attempt["questions"])}
+        card.update(forged_record(body.action, inspected, body.focus))
+        card["provenance"] = {"version": 2, "action": body.action, "action_title": next(a["title"] for a in ACTIONS if a["id"] == body.action), "focus": body.focus if body.action == "verify" else None, "reason": body.reason, "inspected": inspected, "evidence_titles": [e["title"] for e in EVIDENCE if e["id"] in inspected], "evidence_snapshot": [e for e in EVIDENCE if e["id"] in inspected], "questions": json.loads(attempt["questions"])}
         with db() as conn:
             conn.execute("INSERT INTO cards VALUES (?,?,?)", (card["id"], x_player, json.dumps(card)))
             conn.execute("UPDATE attempts SET card=? WHERE id=?", (card["id"], body.attempt))
@@ -268,13 +276,7 @@ def complete(room):
     win, reason = winner(room["scores"])
     # Most consequential rounds by absolute influence swing; all remain in log.
     decisive = sorted(room["history"], key=lambda h: abs(sum(h["effects"][0]["delta"].values()) - sum(h["effects"][1]["delta"].values())), reverse=True)[:2]
-    insights = []
-    for seat in (0, 1):
-        investigation = [h for h in room["history"] if h["plays"][seat]["card"]["archetype"] == "Investigate"]
-        missed = any(sum(h["effects"][seat]["delta"].values()) == 2 for h in investigation)
-        insights.append("A clue bonus was missed. Match the evidence to the decision: audit → Evidence, live session → Response, owner → People." if missed else
-                        "You grounded your investigation in relevant clues. Keep that habit: a clue is useful when it supports the decision at hand." if investigation else
-                        "You shaped the response tactically. Next time, try Investigate and connect a concrete clue to the front it supports.")
+    insights = [strategy_observations(room["history"], seat) for seat in (0, 1)]
     room["result"] = {"winner": win, "reason": reason, "decisive": [h["round"] for h in decisive], "insights": insights}
 
 
@@ -292,9 +294,10 @@ def handle_move(room, seat, msg):
             raise ValueError("Choose an unused card from your hand.")
         if msg.get("front") not in FRONTS:
             raise ValueError("Choose a front.")
-        if card["archetype"] == "Investigate" and msg.get("clue") not in [c["id"] for c in CASE["clues"]]:
-            raise ValueError("Choose a clue to support your investigation.")
-        room["plays"][seat] = {"card": card, "front": msg["front"], "clue": msg.get("clue") if card["archetype"] == "Investigate" else None}
+        choice = msg.get("choice", msg.get("clue") if card["archetype"] == "Investigate" else None)
+        if choice not in [c["id"] for c in CHOICES[card["archetype"]]["options"]]:
+            raise ValueError("Choose a case decision for this card.")
+        room["plays"][seat] = {"card": card, "front": msg["front"], "choice": choice}
         room["used"][seat].append(card["id"])
         if len(room["plays"]) == 2:
             plays = [room["plays"][p] for p in (0, 1)]
