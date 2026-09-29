@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.sqlite3*
+.env
+test-artifacts/
+
+demo-video/*.mp4
