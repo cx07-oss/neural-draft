@@ -8,8 +8,14 @@ Players can then use those cards against another person in a four-round tactical
 
 The aim is simple: **make the game enjoyable first, while useful skills are practised through play.**
 
----
+## Try Neural-Draft
 
+**Local site:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+Start the app from the `neural-draft` folder:
+
+```powershell
+.\run.ps1
 ## How it works
 
 The main loop is:
