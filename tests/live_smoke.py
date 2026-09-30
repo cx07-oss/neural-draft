@@ -27,6 +27,9 @@ async def main(base):
             result=await post("/forge",{"attempt":attempt["id"],"response":decision},profile["token"])
             assert result["card"],result
             profile["card"]=result["card"]
+            saved = await client.get("/api/me", headers={"X-Player": profile["token"]})
+            saved.raise_for_status()
+            assert any(item["id"] == result["card"]["id"] for item in saved.json()["cards"])
             profiles.append(profile)
         a,b=profiles
         card=a["card"]
@@ -51,8 +54,8 @@ async def main(base):
             await wb.send(json.dumps({"token": b["token"]}))
             await until(wa, lambda s: s.get("opponent_online"))
             await until(wb, lambda s: s["type"] == "state")
-            plays_a = [(card["id"], "Evidence", "Compare the audit export and live session token because they establish activity but do not prove who used the account; verify the contractor."), ("s1", "Response", "The live session token matters because revoking it stops continuing access."), ("s2", "People", "Revoke the active session token because it permits continuing access without disrupting unaffected work."), ("s4", "Evidence", "Assign the audit analyst to preserve records before checking the export trail.")]
-            plays_b = [(b["card"]["id"], "People", "Assign the access operator to revoke the token while the workspace owner contacts the contractor, then report the handoff before reopening access."), ("s3", "People", "I challenge the bad guy."), ("s2", "People", "Revoke the live session token because it allows further exports."), ("s4", "Response", "Ask the access operator to revoke the live token before more files leave the workspace.")]
+            plays_a = [(card["id"], "Evidence", "Investigate the contractor account for unusual activity."), ("s1", "Response", "The live session token matters because revoking it stops continuing access."), ("s2", "People", "Revoke the active session token because it permits continuing access without disrupting unaffected work."), ("s4", "Evidence", "Assign the audit analyst to preserve records before checking the export trail.")]
+            plays_b = [(b["card"]["id"], "People", "Assign the access operator to revoke the token while the workspace owner contacts the contractor, then report the handoff before reopening access."), ("s3", "People", "potato"), ("s2", "People", "Contain the workspace because the data is unusual."), ("s4", "Response", "Ask the access operator to revoke the live token before more files leave the workspace.")]
             for n in range(1, 5):
                 def move(p):
                     return json.dumps(dict(type="lock", match=1, round=n, card_id=p[0], front=p[1], response=p[2]))

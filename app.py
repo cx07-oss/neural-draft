@@ -132,6 +132,9 @@ async def index():
 @app.get("/api/config")
 async def config():
     status = await provider_status()
+    runtime = {"ai_provider": status["provider"], "forge_model": status["forge_model"], "battle_model": status["battle_model"],
+               "scenario_model": status["scenario_model"], "forge_timeout": status["forge_timeout"],
+               "battle_timeout": status["battle_timeout"], "offline": status["offline"]}
     public_case = {**CASE, "clues": [{k: v for k, v in c.items() if k != "front"} for c in CASE["clues"]]}
     return {"evidence": EVIDENCE, "actions": ACTIONS, "rubric": RUBRIC, "case": public_case,
             "choices": CHOICES, "responses": RESPONSES, "patterns": [
@@ -141,7 +144,7 @@ async def config():
                 {"id": "coordinate", "kind": "Coordinate", "label": "Shared action", "available": True},
                 {"id": "special_rare", "kind": "Rare", "label": "Classified signature I", "available": True},
                 {"id": "special_epic", "kind": "Epic", "label": "Classified signature II", "available": True}],
-            "effects": EFFECTS, "abilities": ABILITIES, "domains": DOMAINS, "ai": status["available"], "ai_status": status}
+            "effects": EFFECTS, "abilities": ABILITIES, "domains": DOMAINS, "ai": status["available"], "ai_status": status, "ai_runtime": runtime}
 
 
 @app.post("/api/profile")

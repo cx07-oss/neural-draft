@@ -18,6 +18,10 @@ if (-not $env:FORGE_AI_TIMEOUT) {
     $env:FORGE_AI_TIMEOUT = "20"
 }
 
+if (-not $env:BATTLE_AI_TIMEOUT) {
+    $env:BATTLE_AI_TIMEOUT = "10"
+}
+
 $runtime = Join-Path $PSScriptRoot ".venv/Scripts/python.exe"
 if (-not (Test-Path -LiteralPath $runtime)) {
     python -m venv .venv

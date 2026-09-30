@@ -58,8 +58,9 @@ Developer walkthrough responses for the known-good vendor case (local heuristics
 - Rare opportunity, after opening E1/E2/E3: “I would independently verify the vendor signature in a reversible sandbox before rollout because delay is safer than risking dispatch.”
 - Epic opportunity, after opening E1/E2/E3: “I would assign the vendor liaison a signer check and keep manual dispatch running in a reversible pilot; then report back in a handoff before installation because the team needs a stop decision.”
 - Fail/retry: submit “potato”, then replace it with a case-grounded action and reason.
-- Battle Cross-Reference: “Compare the audit export and live session token because they establish activity but do not prove who used the account; verify the contractor.”
-- Battle failure: “I challenge the bad guy.”
+- Battle short success: “Investigate the contractor account for unusual activity.”
+- Battle reasoned success: “Contain the workspace because the data is unusual.”
+- Battle failure: “potato”
 
 ## Provider, caching and latency
 
@@ -67,9 +68,11 @@ Developer walkthrough responses for the known-good vendor case (local heuristics
 
 Ollama receives the Pydantic JSON schema through `format`, `stream: false`, `think: false`, temperature 0 and a task-specific generation budget. Responses are validated again in Python. See the official [structured output documentation](https://docs.ollama.com/capabilities/structured-outputs) and [chat API](https://docs.ollama.com/api/chat).
 
-The three prompts are separate: `generate_scenario`, `assess_written`, and `assess_battle`. Forge uses one bounded attempt; Battle may retry once within its short total deadline. Both use `stream: false`, `think: false`, schema-constrained JSON and very small output budgets. Python adds names, flavour, evidence counts, rarity, ability ID, numerical influence and all match results. An unavailable model, invalid output or deadline expiry yields a friendly local-analysis notice, never raw provider errors.
+The three prompts are separate: `generate_scenario`, `assess_written`, and `assess_battle`. Forge and Battle each use one bounded attempt. Both use `stream: false`, `think: false`, schema-constrained JSON and small output budgets. Python adds names, flavour, evidence counts, rarity, ability ID, numerical influence and all match results. An unavailable model, invalid output or deadline expiry yields the short player notice “Local evaluation used.” for Battle, never a raw provider error. Server logs distinguish timeout, provider unavailability, invalid JSON, schema validation, semantic validation and an intentionally rejected player response.
 
-Startup schedules one non-blocking `qwen3:1.7b` warm-up (`Return OK.`), keeps it resident for 30 minutes, and logs elapsed time. Requests log model, completion time, timeout/fallback, cache hits, and explicit live generation. On this laptop the final representative measurements were: cold Forge **6.78s**, warm Forge **2.23s**, warm Battle **1.11s**, and compact validated qwen3:4b scenario generation **26.0s**. Case generation is therefore preparation-only for the main demo.
+Battle accepts short, sensible tactical statements. The model returns only `result`, `reason` and `cited_text`; Python maps the classification to the fixed card mechanic and ensures the stored citation is a bounded exact substring of the player's move. If the small model paraphrases only that citation, the server substitutes the original player response and logs the repair. The deterministic fallback rejects empty, nonsense, unrelated and injection text, while accepting a relevant action or case reference as success or partial. Base influence remains 2 even when the contextual effect fails.
+
+Startup schedules one non-blocking `qwen3:1.7b` warm-up (`Return OK.`), keeps it resident for 30 minutes, and logs elapsed time. Requests log model, completion time, timeout/fallback, cache hits, and explicit live generation. On this laptop the final reliability run measured warm Forge at **2.49–2.59s** and valid Battle moves at **0.98–2.09s**. A previous compact validated qwen3:4b scenario generation took **26.0s**, so case generation remains preparation-only for the main demo.
 
 Six validated authored cases ship in `scenarios.py`: vendor update, conflicting render-farm sensors, a startup release promise, a missing freight scan, confounded lab results, and a two-team release handoff. Three additional qwen3:4b cases were validated and cached in the existing local SQLite database, giving this demo installation **nine** ready cases. Domains are controlled; all cases are fictional. The compact generation schema requests exactly three records, one stakeholder, good/failure signals and Rare/Epic conditions; Python derives IDs, rules, rarity labels, ability templates and the full stored case.
 
@@ -93,8 +96,8 @@ This writes only validated scenarios into the same SQLite cache. Interactive gen
 | `OLLAMA_MODEL` | Optional backward-compatible override for all tasks |
 | `NEURAL_OFFLINE` | Set `1` to skip all model calls |
 | `SCENARIO_AI_TIMEOUT` | 45 seconds total; preparation supports up to 600 |
-| `FORGE_AI_TIMEOUT` | `run.ps1` defaults to 20 seconds; hard maximum 20 (direct server launch defaults to 8) |
-| `BATTLE_AI_TIMEOUT` | 3 seconds total; hard maximum 4 |
+| `FORGE_AI_TIMEOUT` | 20 seconds total; hard maximum 20 |
+| `BATTLE_AI_TIMEOUT` | 10 seconds total; hard maximum 10 |
 | `NEURAL_DB` | `neural.sqlite3` beside app.py |
 | `OPENAI_API_KEY` | Only for explicitly selected OpenAI provider |
 | `OPENAI_MODEL` | Optional alternate-provider model; `gpt-4o-mini` |
@@ -167,7 +170,7 @@ node --check static/app.js
 .venv/Scripts/python.exe tests/live_smoke.py http://127.0.0.1:8000
 ```
 
-Thirty-one automated tests pass, including task-specific model routing, compact Forge schema rejection, generation schema rejection, provider JSON schema requests, no-key/unavailable-model fallback, hidden conditions, real fail/retry, grounded citations, rarity independence, exhaustive ability budgets, simultaneous cancellation, hidden commitments, queued simultaneous moves, reconnect, rematch, persistence and legacy schema migration. Pure frontend template smoke checks also pass; they do not verify browser layout.
+Thirty-three automated tests pass, including task-specific model routing, compact Forge and Battle schema rejection, generation schema rejection, provider JSON schema requests, lenient short Battle moves, nonsense and injection rejection, no-key/unavailable-model fallback, hidden conditions, real fail/retry, grounded citations, rarity independence, exhaustive ability budgets, simultaneous cancellation, hidden commitments, queued simultaneous moves, reconnect, rematch, persistence and legacy schema migration. Pure frontend template smoke checks also pass; they do not verify browser layout.
 
 An isolated no-AI live server passed two written forges (Rare/Epic), four rounds, successful and failed abilities, base retention, hidden moves, locked-seat reconnect, results and rematch. Real qwen3:1.7b structured calls passed the final Forge and Battle validation paths, while qwen3:4b produced two validated cached cases. The same full wire-level match remains covered with AI unavailable, so model failure cannot stall multiplayer.
 

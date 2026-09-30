@@ -6,6 +6,7 @@ import os
 import time
 
 import httpx
+from pydantic import ValidationError
 
 LOG = logging.getLogger("uvicorn.error")
 
@@ -30,10 +31,9 @@ def model_for(task):
 
 
 def deadline(task):
-    defaults = {"scenario": 45.0, "forge": 8.0, "battle": 3.0}
+    defaults = {"scenario": 45.0, "forge": 20.0, "battle": 10.0}
     try:
-        # A battle cannot silently become a ten-second model wait.
-        return min({"battle":4,"forge":20,"scenario":600}[task], max(0.2, float(os.getenv(f"{task.upper()}_AI_TIMEOUT", defaults[task]))))
+        return min({"battle":10,"forge":20,"scenario":600}[task], max(0.2, float(os.getenv(f"{task.upper()}_AI_TIMEOUT", defaults[task]))))
     except ValueError:
         return defaults[task]
 
@@ -62,25 +62,67 @@ class OpenAIProvider:
         return "".join(c.get("text", "") for item in response.json().get("output", []) if item.get("type") == "message" for c in item.get("content", []) if c.get("type") == "output_text")
 
 
-async def structured(schema, instructions, payload, timeout, retries=1, budget=900, validator=None, task="forge"):
+def _diagnostic(diagnostics, reason, detail=""):
+    if diagnostics is not None:
+        diagnostics.update(reason=reason, detail=detail[:240])
+
+
+async def structured(schema, instructions, payload, timeout, retries=1, budget=900, validator=None, task="forge", diagnostics=None):
+    label = task.capitalize()
     if not ai_available():
+        _diagnostic(diagnostics, "offline_or_unconfigured")
         return None
     provider = OllamaProvider() if provider_name() == "ollama" else OpenAIProvider()
-    for _ in range(retries+1):
+    for attempt in range(retries+1):
+        started = time.monotonic()
         try:
             # Every attempt has its own bound; callers also enforce a total deadline.
             async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=min(1.0, timeout)), trust_env=False) as client:
                 raw = await asyncio.wait_for(provider.generate(client, schema, instructions, payload, budget, task), timeout)
-            result = schema.model_validate_json(raw).model_dump()
-            return validator(result) if validator else result
-        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError, asyncio.TimeoutError):
+            LOG.info("[AI] %s raw response received - elapsed=%.2fs attempt=%d", label, time.monotonic()-started, attempt+1)
+        except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
+            _diagnostic(diagnostics, "timeout", str(exc))
+            LOG.warning("[AI] %s timeout after %.2fs", label, timeout)
             continue
+        except httpx.HTTPError as exc:
+            _diagnostic(diagnostics, "provider_unavailable", f"{type(exc).__name__}: {exc}")
+            LOG.warning("[AI] %s provider unavailable: %s", label, type(exc).__name__)
+            continue
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            _diagnostic(diagnostics, "provider_envelope_error", f"{type(exc).__name__}: {exc}")
+            LOG.warning("[AI] %s provider response error: %s", label, str(exc)[:180])
+            continue
+        try:
+            decoded = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as exc:
+            _diagnostic(diagnostics, "invalid_json", str(exc))
+            LOG.warning("[AI] %s JSON parse failed: %s", label, str(exc)[:180])
+            continue
+        try:
+            result = schema.model_validate(decoded).model_dump()
+        except ValidationError as exc:
+            _diagnostic(diagnostics, "schema_validation", str(exc))
+            LOG.warning("[AI] %s schema validation failed: %s", label, str(exc).replace("\n", " ")[:220])
+            continue
+        try:
+            result = validator(result) if validator else result
+        except ValueError as exc:
+            _diagnostic(diagnostics, "semantic_validation", str(exc))
+            LOG.warning("[AI] %s semantic validation failed: %s", label, str(exc)[:180])
+            continue
+        _diagnostic(diagnostics, "ok")
+        LOG.info("[AI] %s parsed successfully", label)
+        return result
     return None
 
 
 async def provider_status():
     models = {task: model_for(task) for task in ("scenario", "forge", "battle")}
-    result = {"provider": provider_name(), "model": models["forge"], "models": models, "available": False, "scenario_available": False}
+    offline = os.getenv("NEURAL_OFFLINE") == "1"
+    result = {"provider": provider_name(), "model": models["forge"], "models": models,
+              "forge_model": models["forge"], "battle_model": models["battle"], "scenario_model": models["scenario"],
+              "forge_timeout": deadline("forge"), "battle_timeout": deadline("battle"), "offline": offline,
+              "available": False, "scenario_available": False}
     if not ai_available():
         return result
     if provider_name() == "openai":
@@ -112,6 +154,6 @@ async def warm_gameplay_model():
                 "options": {"temperature": 0, "num_predict": 4},
             })
             response.raise_for_status()
-        LOG.info("[AI] Model warm-up: %.2fs", time.monotonic() - started)
+        LOG.info("[AI] Gameplay model warm - %s - %.2fs", model, time.monotonic() - started)
     except (httpx.HTTPError, asyncio.TimeoutError, ValueError, KeyError, TypeError):
         LOG.info("[AI] Model warm-up unavailable - gameplay fallback remains ready")
