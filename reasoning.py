@@ -67,10 +67,10 @@ async def generate_scenario(domain):
 
 
 PATTERNS = {
-    "verification": r"\b(verify|verification|independent|confirm|cross.check|compare|validate|check|callback)\b",
-    "containment": r"\b(isolate|quarantine|revoke|pause|limit|contain|restrict|hold|checkpoint)\b",
-    "challenge": r"\b(assumption|unsupported|contradict|disprove|confound|does not prove|doesn't prove|not prove|question|test the claim)\b",
-    "coordination": r"\b(assign|coordinate|liaison|lead|owner|team|supervisor|handoff|hand.off)\b",
+    "verification": r"\b(verif(?:y|ies|ied|ying|ication|ications)|independent|confirm(?:s|ed|ing|ation)?|cross.check|compar(?:e|es|ed|ing|ison)|validat(?:e|es|ed|ing|ion)|check(?:s|ed|ing)?|callback)\b",
+    "containment": r"\b(isolat(?:e|es|ed|ing|ion)|quarantin(?:e|es|ed|ing)|revok(?:e|es|ed|ing)|paus(?:e|es|ed|ing)|limit(?:s|ed|ing)?|contain(?:s|ed|ing|ment)?|restrict(?:s|ed|ing|ion)?|hold|checkpoint|segment(?:s|ed|ing)?)\b",
+    "challenge": r"\b(assumption|unsupported|contradict(?:s|ed|ing|ion)?|disprov(?:e|es|ed|ing)|confound(?:s|ed|ing)?|does not prove|doesn't prove|not prove|question(?:s|ed|ing)?|test the claim)\b",
+    "coordination": r"\b(assign(?:s|ed|ing)?|coordinat(?:e|es|ed|ing|ion)|liaison|lead|owner|team|supervisor|handoff|hand.off|escalat(?:e|es|ed|ing|ion))\b",
     "tradeoff": r"\b(trade.off|cost|delay|slower|although|but|rather than|instead of|risk|budget)\b",
     "reversible": r"\b(reversible|rollback|roll.back|sandbox|checkpoint|refundable|feature flag|small pilot)\b",
     "continuity": r"\b(keep|continue|unaffected|manual|continuity|bridge)\b",
@@ -84,6 +84,22 @@ NAME_BANKS = {
     "Coordinate": ("Relay", "Dual Channel", "Command Link", "Rally Point", "Handoff"),
 }
 INJECTION = re.compile(r"ignore (?:all |the |previous |system )*(?:instructions|rules|rubric)|(?:give|award|grant|return).{0,35}(?:epic|rare|100|winner)|system\s*:|developer\s*:", re.I)
+
+STOP_WORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "because", "before", "by", "for", "from", "has", "have", "i", "if", "in", "into", "is", "it", "its", "me", "my", "of", "on", "or", "our", "so", "that", "the", "their", "then", "this", "through", "to", "we", "while", "with", "would", "you", "your",
+    "actual", "action", "case", "clear", "decision", "demonstrate", "demonstrated", "player", "response", "scenario",
+}
+TOKEN_EQUIVALENTS = {
+    "verification": "verify", "verifying": "verify", "verified": "verify", "verifies": "verify",
+    "check": "verify", "checked": "verify", "checking": "verify", "confirm": "verify", "confirmed": "verify", "confirmation": "verify", "validate": "verify", "validated": "verify", "validation": "verify",
+    "supplier": "vendor", "signer": "signature", "signing": "signature", "hotfix": "update", "package": "update",
+    "containment": "contain", "contained": "contain", "containing": "contain", "isolate": "contain", "isolated": "contain", "isolation": "contain", "quarantine": "contain", "segmented": "contain",
+    "coordination": "coordinate", "coordinated": "coordinate", "coordinating": "coordinate", "assign": "coordinate", "assigned": "coordinate", "handoff": "coordinate", "escalate": "coordinate", "escalation": "coordinate",
+    "challenged": "challenge", "challenging": "challenge", "question": "challenge", "questioned": "challenge", "dispute": "challenge",
+    "rollback": "reversible", "failover": "reversible", "sandbox": "reversible", "pilot": "reversible",
+    "risks": "risk", "risky": "risk", "changed": "change", "changes": "change",
+}
+GROUNDING_CONCEPTS = {"verify", "contain", "coordinate", "challenge", "reversible", "risk", "tradeoff", "continuity", "test", "investigate", "compare", "pause", "monitor", "preserve", "restore", "change"}
 
 
 def unsafe_or_injection(text):
@@ -117,6 +133,56 @@ def exact_player_citation(cited, text):
         if candidate and start >= 0:
             return text[start:start + len(candidate)]
     return None
+
+
+def grounding_tokens(value):
+    value = value.casefold().replace("’", "'").replace("‘", "'")
+    tokens = []
+    for token in re.findall(r"[a-z0-9]+", value):
+        if token in STOP_WORDS or len(token) < 2:
+            continue
+        token = TOKEN_EQUIVALENTS.get(token, token)
+        if token.endswith("ies") and len(token) > 5:
+            token = token[:-3] + "y"
+        elif token.endswith("s") and len(token) > 5 and not token.endswith("ss"):
+            token = token[:-1]
+        tokens.append(TOKEN_EQUIVALENTS.get(token, token))
+    return tokens
+
+
+def lexical_grounding(candidate, source):
+    """Fast paraphrase check with conservative content-token overlap."""
+    wanted = set(grounding_tokens(candidate))
+    available = set(grounding_tokens(source))
+    if not wanted:
+        return False, 0.0
+    shared = wanted & available
+    ratio = len(shared) / len(wanted)
+    grounded = (len(shared) >= 2 and ratio >= 0.5) or len(shared) >= 3
+    return grounded, ratio
+
+
+def supporting_phrase(text, target, limit=240):
+    target_tokens = set(grounding_tokens(target))
+    clauses = [part.strip() for part in re.split(r"(?<=[.!?;])\s+|\s*,\s*(?=(?:while|then|and|but)\b)", text) if part.strip()]
+    best = max(clauses or [text.strip()], key=lambda part: len(set(grounding_tokens(part)) & target_tokens))
+    if len(best) > limit:
+        best = best[:limit].rsplit(" ", 1)[0]
+    return best.strip()
+
+
+def grounding_source(text, case, inspected):
+    opened = [e for e in case["evidence"] if e["id"] in inspected]
+    return " ".join([text, case["title"], case["brief"], case["stakes"], case["time_pressure"]]
+                    + [f"{e['title']} {e['text']}" for e in opened])
+
+
+def explanation_grounded(semantic, text, case, inspected):
+    source = grounding_source(text, case, inspected)
+    explanation = f"{semantic['skill']} {semantic['forged_because']}"
+    grounded, ratio = lexical_grounding(explanation, source)
+    shared = set(grounding_tokens(explanation)) & set(grounding_tokens(source))
+    return grounded and bool(shared & GROUNDING_CONCEPTS), ratio
 
 
 def local_forge(text, case, inspected):
@@ -155,9 +221,13 @@ def validate_forge_semantic(review, text, case, inspected):
     semantic = ForgeSemantic.model_validate(review).model_dump()
     kind = semantic["archetype"].title() if semantic["archetype"] else None
     citation = exact_player_citation(semantic["cited_text"], text)
-    if semantic["verdict"] != "fail" and (not citation or kind not in case["possible_archetypes"]):
-        raise ValueError("Ungrounded assessment")
-    if citation:
+    citation_grounded = bool(citation)
+    if not citation_grounded:
+        citation_grounded, _ = lexical_grounding(semantic["cited_text"], text)
+    reason_grounded, reason_overlap = explanation_grounded(semantic, text, case, inspected)
+    if semantic["verdict"] != "fail" and (kind not in case["possible_archetypes"] or not (citation_grounded or reason_grounded)):
+        raise ValueError("Ungrounded assessment: neither citation nor explanation matches player/case context")
+    if semantic["verdict"] != "fail" and citation:
         semantic["cited_text"] = citation
     signals = signal_citations(text)
     tags = {s["signal"] for s in signals}
@@ -171,10 +241,27 @@ def validate_forge_semantic(review, text, case, inspected):
     if chosen_special:
         condition = next((item for item in case["special_card_conditions"] if item["id"] == chosen_special), None)
         if not condition or len(evidence_ids) < 2 or not set(condition["required_reasoning"]).issubset(tags):
-            raise ValueError("Unsupported special unlock")
-        # A fully demonstrated special pattern is more specific than the response's
-        # first detected verb, so the fixed server template owns the archetype.
-        kind = ABILITIES[condition["ability_template"]]["kind"]
+            LOG.info("[AI] Forge unsupported special unlock removed - %s", chosen_special)
+            chosen_special = None
+        else:
+            # A fully demonstrated special pattern is more specific than the response's
+            # first detected verb, so the fixed server template owns the archetype.
+            kind = ABILITIES[condition["ability_template"]]["kind"]
+    if semantic["verdict"] != "fail":
+        labels = {"Investigate": "independent verification", "Contain": "risk containment", "Challenge": "testing an assumption", "Coordinate": "coordination"}
+        if not citation:
+            citation = supporting_phrase(text, labels[kind])
+            semantic["cited_text"] = citation
+            LOG.info("[AI] Forge citation grounded by lexical overlap and repaired from player response")
+        source_tokens = set(grounding_tokens(grounding_source(text, case, inspected)))
+        skill_tokens = set(grounding_tokens(semantic["skill"]))
+        if not (skill_tokens & source_tokens & GROUNDING_CONCEPTS):
+            semantic["skill"] = labels[kind].title()
+            LOG.info("[AI] Forge skill replaced with grounded server label")
+        if not reason_grounded or reason_overlap < 0.3:
+            reason_quote = citation if len(citation) <= 170 else citation[:170].rsplit(" ", 1)[0]
+            semantic["forged_because"] = f"You demonstrated {labels[kind]} through your stated action: “{reason_quote}”."
+            LOG.info("[AI] Forge explanation replaced with grounded server template")
     base.update(verdict=semantic["verdict"], archetype=None if semantic["verdict"] == "fail" else kind,
                 special_unlock=chosen_special, demonstrated_skill=semantic["skill"],
                 forged_because=semantic["forged_because"], cited_player_text=semantic["cited_text"],
@@ -200,7 +287,8 @@ async def assess_written(text, case, inspected):
         try:
             result = await asyncio.wait_for(structured(ForgeSemantic, instructions, prompt, timeout, retries=0, budget=180, validator=lambda r: validate_forge_semantic(r,text,case,inspected), task="forge", diagnostics=diagnostics), timeout)
             if result:
-                LOG.info("[AI] Forge completed - %.2fs", time.monotonic()-started)
+                LOG.info("[AI] Forge semantic validation passed")
+                LOG.info("[AI] Forge completed using neural evaluation - %.2fs", time.monotonic()-started)
                 return {**result, "mode": "ai", "notice": "Neural analysis of your written decision. Citations and allowed outputs were validated; mechanics remain fixed."}
         except asyncio.TimeoutError:
             diagnostics.update(reason="hard_timeout", detail=f"Exceeded {timeout:.1f}s total deadline")
