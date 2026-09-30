@@ -85,7 +85,7 @@ def strategy_observations(history, seat):
         if contests:
             observations.append({"text": f"Your containment met a rival play in round {contests[0]}, earning the contested-front bonus.", "rounds": [contests[0]], "skills": ["Prediction"]})
     return observations
-NAMES = {"Investigate": "Signal Cartographer", "Contain": "Quiet Firewall", "Challenge": "Assumption Breaker", "Coordinate": "Relay Architect"}
+NAMES = {"Investigate": "Source Check", "Contain": "Safe Hold", "Challenge": "Reality Check", "Coordinate": "Team Link"}
 FLAVOUR = {"Investigate": "Follow the signal. Earn the certainty.", "Contain": "A small boundary can protect a whole system.", "Challenge": "The next good decision begins with a question.", "Coordinate": "No one holds the whole map. Connect the people who do."}
 
 
@@ -96,8 +96,8 @@ def make_card(card_id, archetype, nickname, evolution="Initiate", demo=False):
 
 
 def deck(card):
-    starters = [("s1", "Trace Lens", "Investigate"), ("s2", "Circuit Shelter", "Contain"),
-                ("s3", "Counterpoint", "Challenge"), ("s4", "Human Relay", "Coordinate"),
+    starters = [("s1", "Trace", "Investigate"), ("s2", "Shield", "Contain"),
+                ("s3", "Counterclaim", "Challenge"), ("s4", "Relay", "Coordinate"),
                 ("s5", "Source Check", "Investigate")]
     return [{**card, "effect": EFFECTS[card["archetype"]]}] + [{"id": i, "name": n, "archetype": a, "effect": EFFECTS[a],
                      "skill": "Starter protocol", "flavour": FLAVOUR[a], "evolution": "Starter"} for i, n, a in starters]

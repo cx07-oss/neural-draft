@@ -129,10 +129,10 @@ class GeneratedScenario(Strict):
 def normalize_generated(case):
     case = GeneratedScenario.model_validate(case).model_dump()
     variants = {
-        "verification": ("Investigate", "INVESTIGATE_CROSSCHECK", "Signal Warden"),
-        "containment": ("Contain", "CONTAIN_STABILISE", "Safehold"),
-        "challenge": ("Challenge", "CHALLENGE_FALSE_PREMISE", "Fault Line"),
-        "coordination": ("Coordinate", "COORDINATE_DUAL_CHANNEL", "Command Link"),
+        "verification": ("Investigate", "INVESTIGATE_CROSSCHECK", "Cross-Check"),
+        "containment": ("Contain", "CONTAIN_STABILISE", "Stabilise"),
+        "challenge": ("Challenge", "CHALLENGE_FALSE_PREMISE", "False Premise"),
+        "coordination": ("Coordinate", "COORDINATE_DUAL_CHANNEL", "Dual Channel"),
     }
     def variant(signals):
         for key in ("verification", "containment", "challenge", "coordination"):
@@ -176,8 +176,8 @@ def seed(i, title, domain, brief, stakes, pressure, name, role, message, evidenc
         "hidden_rubric": {"important_considerations": [stakes, "Separate established facts from assumptions; keep a reversible option."], "dangerous_assumptions": ["Urgency proves that the proposed action is correct."], "good_reasoning_signals": ["Propose an independent check tied to case evidence.", "Name a limited action, its cost and a condition for revising it."], "failure_signals": ["Unrelated text, outcome demands, or blind action without a case-grounded reason."]},
         "possible_archetypes": ["Investigate", "Contain", "Challenge", "Coordinate"],
         "special_card_conditions": [
-            {"id": "special_rare", "rarity": "RARE", "name_seed": "Ghost Protocol", "required_reasoning": ["verification", "reversible", "tradeoff"], "ability_template": "INVESTIGATE_CROSSCHECK"},
-            {"id": "special_epic", "rarity": "EPIC", "name_seed": "Zero-Hour Diplomat", "required_reasoning": ["coordination", "reversible", "continuity", "handoff"], "ability_template": "COORDINATE_DUAL_CHANNEL"},
+            {"id": "special_rare", "rarity": "RARE", "name_seed": "Cross-Check", "required_reasoning": ["verification", "reversible", "tradeoff"], "ability_template": "INVESTIGATE_CROSSCHECK"},
+            {"id": "special_epic", "rarity": "EPIC", "name_seed": "Dual Channel", "required_reasoning": ["coordination", "reversible", "continuity", "handoff"], "ability_template": "COORDINATE_DUAL_CHANNEL"},
         ],
     }).model_dump()
 
@@ -224,7 +224,7 @@ SEEDS = [
 # Hidden opportunities vary with the case; they never change the ability rules.
 for case in SEEDS:
     if case["domain"] in ("engineering", "logistics"):
-        case["special_card_conditions"][0].update(name_seed="Continuity Shield", required_reasoning=["containment", "reversible", "continuity"], ability_template="CONTAIN_STABILISE")
+        case["special_card_conditions"][0].update(name_seed="Stabilise", required_reasoning=["containment", "reversible", "continuity"], ability_template="CONTAIN_STABILISE")
     elif case["domain"] in ("product", "scientific"):
         case["special_card_conditions"][0].update(name_seed="False Premise", required_reasoning=["challenge", "verification", "test"], ability_template="CHALLENGE_FALSE_PREMISE")
     Scenario.model_validate(case)

@@ -78,10 +78,10 @@ PATTERNS = {
     "handoff": r"\b(handoff|hand.off|report back|report to|stop decision|stop call|reconvene|checkpoint with)\b",
 }
 NAME_BANKS = {
-    "Investigate": ("Signal Warden", "Trace Vector", "Sourcekeeper", "Audit Sentinel", "Parallax"),
-    "Contain": ("Firewall", "Stabiliser", "Safehold", "Barrier", "Containment Node"),
-    "Challenge": ("False Premise", "Counterpoint", "Red Flag", "Contradiction", "Fault Line"),
-    "Coordinate": ("Relay", "Dual Channel", "Command Link", "Rally Point", "Handoff"),
+    "Investigate": ("Verify", "Cross-Check", "Trace", "Deep Scan", "Second Source"),
+    "Contain": ("Stabilise", "Lockdown", "Safe Hold", "Shield", "Damage Control"),
+    "Challenge": ("Counterclaim", "False Premise", "Reality Check", "Pressure Test", "Red Flag"),
+    "Coordinate": ("Rally", "Relay", "Handoff", "Team Link", "Dual Channel"),
 }
 INJECTION = re.compile(r"ignore (?:all |the |previous |system )*(?:instructions|rules|rubric)|(?:give|award|grant|return).{0,35}(?:epic|rare|100|winner)|system\s*:|developer\s*:", re.I)
 

@@ -23,10 +23,10 @@ for(const screen of ['home','forge','reveal','collection','duel']){
   assert(html.length>200,screen);
 }
 let html=vm.runInContext(`state.attempt.assessment={verdict:'fail',feedback:'Add a case detail and an action.',notice:'Approximate local analysis.'};state.attempt.can_retry=true;forgeHTML()`,context);
-assert(html.includes('FORGE UNSTABLE'));
+assert(html.includes('Make the decision more specific'));
 html=vm.runInContext(`state.playCard=fixture.card.id;state.front='Evidence';state.battleText='<script>bad()</script>';duelHTML()`,context);
 assert(html.includes('battle-response'));
 assert(!html.includes('<script>bad()'));
 html=vm.runInContext(`state.room.locked=true;state.room.evaluating=true;state.room.own_play={card:fixture.card,front:'Evidence',response:'A sealed written move.'};duelHTML()`,context);
-assert(html.includes('Interpreting your sealed decision'));
+assert(html.includes('Resolving move'));
 console.log('PASS: landing, forge, unstable retry, reveal, collection, duel, pending evaluation, and escaped player text render without template errors. Layout not tested.');
