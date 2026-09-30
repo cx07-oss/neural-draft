@@ -16,6 +16,9 @@ Start the app from the `neural-draft` folder:
 
 ```powershell
 .\run.ps1
+
+```
+
 ## How it works
 
 The main loop is:
