@@ -82,6 +82,88 @@ class Scenario(Strict):
         return self
 
 
+class GeneratedStakeholder(Strict):
+    name: str = Field(min_length=2, max_length=50)
+    role: str = Field(min_length=2, max_length=70)
+    message: str = Field(min_length=20, max_length=260)
+
+
+class GeneratedEvidence(Strict):
+    title: str = Field(min_length=3, max_length=80)
+    text: str = Field(min_length=20, max_length=420)
+    reliability: Literal["high", "medium", "low"]
+    tags: list[Annotated[str, Field(min_length=2, max_length=30)]] = Field(min_length=1, max_length=4)
+
+
+class GeneratedCondition(Strict):
+    required_reasoning: list[Signal] = Field(min_length=3, max_length=6)
+
+    @model_validator(mode="after")
+    def unique_signals(self):
+        if len(set(self.required_reasoning)) != len(self.required_reasoning):
+            raise ValueError("Condition signals must be unique")
+        return self
+
+
+class GeneratedScenario(Strict):
+    """Compact model-owned content; Python derives IDs, rules, rarity and abilities."""
+    title: str = Field(min_length=5, max_length=90)
+    domain: Domain
+    brief: str = Field(min_length=40, max_length=520)
+    stakes: str = Field(min_length=15, max_length=200)
+    time_pressure: str = Field(min_length=10, max_length=120)
+    stakeholder: GeneratedStakeholder
+    evidence: list[GeneratedEvidence] = Field(min_length=3, max_length=3)
+    good_signals: list[Signal] = Field(min_length=2, max_length=5)
+    failure_signals: list[ShortText] = Field(min_length=1, max_length=3)
+    rare_condition: GeneratedCondition
+    epic_condition: GeneratedCondition
+
+    @model_validator(mode="after")
+    def compact_conditions(self):
+        if len(self.epic_condition.required_reasoning) < 4:
+            raise ValueError("Epic condition needs four signals")
+        return self
+
+
+def normalize_generated(case):
+    case = GeneratedScenario.model_validate(case).model_dump()
+    variants = {
+        "verification": ("Investigate", "INVESTIGATE_CROSSCHECK", "Signal Warden"),
+        "containment": ("Contain", "CONTAIN_STABILISE", "Safehold"),
+        "challenge": ("Challenge", "CHALLENGE_FALSE_PREMISE", "Fault Line"),
+        "coordination": ("Coordinate", "COORDINATE_DUAL_CHANNEL", "Command Link"),
+    }
+    def variant(signals):
+        for key in ("verification", "containment", "challenge", "coordination"):
+            if key in signals:
+                return variants[key]
+        return variants["coordination"]
+    rare = variant(case["rare_condition"]["required_reasoning"])
+    epic = variant(case["epic_condition"]["required_reasoning"])
+    kinds = {variants[s][0] for s in case["good_signals"] if s in variants} | {rare[0], epic[0]}
+    if len(kinds) < 2:
+        kinds.add("Coordinate" if "Coordinate" not in kinds else "Investigate")
+    full = {
+        "scenario_id": "generated", "title": case["title"], "domain": case["domain"], "difficulty": "STANDARD",
+        "brief": case["brief"], "stakes": case["stakes"], "time_pressure": case["time_pressure"],
+        "characters": [{"name": case["stakeholder"]["name"], "role": case["stakeholder"]["role"], "initial_message": case["stakeholder"]["message"]}],
+        "evidence": [{"id": f"E{i+1}", **record} for i, record in enumerate(case["evidence"])],
+        "hidden_rubric": {
+            "important_considerations": [f"Use {signal} in a case-grounded decision." for signal in case["good_signals"][:5]],
+            "dangerous_assumptions": case["failure_signals"],
+            "good_reasoning_signals": [f"Demonstrates {signal}." for signal in case["good_signals"]],
+            "failure_signals": case["failure_signals"],
+        },
+        "possible_archetypes": [kind for kind in Archetype.__args__ if kind in kinds],
+        "special_card_conditions": [
+            {"id": "special_rare", "rarity": "RARE", "name_seed": rare[2], "required_reasoning": case["rare_condition"]["required_reasoning"], "ability_template": rare[1]},
+            {"id": "special_epic", "rarity": "EPIC", "name_seed": epic[2], "required_reasoning": case["epic_condition"]["required_reasoning"], "ability_template": epic[1]},
+        ],
+    }
+    return Scenario.model_validate(full).model_dump()
+
+
 def public_case(case, source):
     return {k: v for k, v in case.items() if k not in ("hidden_rubric", "special_card_conditions")} | {"source": source}
 

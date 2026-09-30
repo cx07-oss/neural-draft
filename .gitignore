@@ -5,4 +5,7 @@ __pycache__/
 *.log
 test-artifacts/
 
-demo-video/*.mp4
+demo-video/.deps/
+demo-video/audio/
+demo-video/build/
+demo-video/captures/

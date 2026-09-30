@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 import app as server
 from abilities import ABILITIES, decorate, resolve_pair
 from content import FRONTS, make_card
-from providers import structured, provider_status
-from reasoning import BattleReview, ForgeReview, assess_battle, assess_written, award, generate_scenario, local_battle, local_forge, validate_forge
+from providers import structured, provider_status, model_for, deadline
+from reasoning import BattleReview, ForgeSemantic, assess_battle, assess_written, award, generate_scenario, local_battle, local_forge, validate_forge_semantic
 from scenarios import SEEDS, Scenario
 
 GOOD = "I would independently verify the vendor signature through the directory before rollout because the signer changed."
@@ -30,6 +30,20 @@ BATTLE = {
     "CHALLENGE_FALSE_PREMISE": "The audit does not prove every account was hacked; verify the contractor because a new device is not proof of a breach.",
     "COORDINATE_RALLY": "Assign the audit analyst to preserve and check the records before committing to the claim.",
     "COORDINATE_DUAL_CHANNEL": "Assign the access operator to revoke the token while the owner contacts the contractor, then report the handoff before reopening access.",
+}
+GENERATED = {
+    "title": "Signer at the deadline", "domain": "cybersecurity",
+    "brief": "A supplier requests an urgent update while the package signer differs from the identity in the approved directory.",
+    "stakes": "Dispatch may pause or an unverified package may enter production.", "time_pressure": "The release window closes in 20 minutes.",
+    "stakeholder": {"name": "Mara", "role": "Release lead", "message": "I need a bounded decision that protects dispatch and gives the team a clear checkpoint."},
+    "evidence": [
+        {"title":"Supplier note","text":"The supplier requests immediate installation before the window closes.","reliability":"medium","tags":["supplier","urgent"]},
+        {"title":"Signer record","text":"The package signer differs from the approved directory identity.","reliability":"high","tags":["signer","directory"]},
+        {"title":"Dispatch status","text":"Orders continue with a small increase in retry events.","reliability":"high","tags":["dispatch","retries"]},
+    ],
+    "good_signals":["verification","reversible","tradeoff"], "failure_signals":["Urgency is treated as proof."],
+    "rare_condition":{"required_reasoning":["verification","reversible","tradeoff"]},
+    "epic_condition":{"required_reasoning":["coordination","reversible","continuity","handoff"]},
 }
 
 
@@ -61,7 +75,6 @@ class WrittenRulesTest(unittest.TestCase):
         case=SEEDS[0]
         for text,expected in [(GOOD,'UNCOMMON'),(RARE,'RARE'),(EPIC,'EPIC')]:
             review=local_forge(text,case,['E1','E2','E3'])
-            validate_forge(review,text,case,['E1','E2','E3'])
             reward=award(review,case)
             self.assertEqual(reward['rarity'],expected)
             self.assertIn(reward['ability_id'],ABILITIES)
@@ -70,15 +83,15 @@ class WrittenRulesTest(unittest.TestCase):
         self.assertEqual(award(basic,case)['rarity'],'UNCOMMON')
         basic['special_unlock']='special_epic'
         self.assertEqual(award(basic,case)['rarity'],'UNCOMMON')
-        with self.assertRaises(ValueError):validate_forge(basic,GOOD,case,['E1','E2','E3'])
+        semantic={'verdict':'good','archetype':'INVESTIGATE','special_unlock':'special_epic','skill':'Verification','forged_because':'Grounded in an independent check.','cited_text':GOOD}
+        with self.assertRaises(ValueError):validate_forge_semantic(semantic,GOOD,case,['E1','E2','E3'])
 
     def test_schema_citations_and_extra_mechanics_rejected(self):
-        review=local_forge(GOOD,SEEDS[0],['E1','E2','E3'])
-        self.assertEqual(ForgeReview.model_validate({**review,'reasoning_score':999}).reasoning_score,100)
-        for values in ({'winner':0},{'rarity':'EPIC'},{'archetype':'Wizard'},{'ability_id':'WIN'}):
-            with self.assertRaises(ValueError):ForgeReview.model_validate({**review,**values})
-        with self.assertRaises(ValueError):validate_forge({**review,'cited_player_text':'invented quotation'},GOOD,SEEDS[0],['E1'])
-        with self.assertRaises(ValueError):validate_forge({**review,'evidence_ids':['E5']},GOOD,SEEDS[0],['E1'])
+        review={'verdict':'good','archetype':'INVESTIGATE','special_unlock':None,'skill':'Independent verification','forged_because':'The response checks a changed signer before rollout.','cited_text':GOOD}
+        ForgeSemantic.model_validate(review)
+        for values in ({'winner':0},{'rarity':'EPIC'},{'archetype':'WIZARD'},{'ability_id':'WIN'},{'reasoning_score':99}):
+            with self.assertRaises(ValueError):ForgeSemantic.model_validate({**review,**values})
+        with self.assertRaises(ValueError):validate_forge_semantic({**review,'cited_text':'invented quotation'},GOOD,SEEDS[0],['E1'])
         good=local_battle(BATTLE['INVESTIGATE_VERIFY'],'INVESTIGATE_VERIFY','Evidence')
         for values in ({'influence':99},{'winner':0},{'validated_effect_id':'WIN'},{'effect_result':'godmode'}):
             with self.assertRaises(ValueError):BattleReview.model_validate({**good,**values})
@@ -116,6 +129,14 @@ class ProviderTest(unittest.TestCase):
         with patch('providers.httpx.AsyncClient',side_effect=lambda **kw:original(transport=transport,**kw)),patch.dict(os.environ,{'AI_PROVIDER':'ollama','NEURAL_OFFLINE':'0',**(env or {})}):
             return asyncio.run(coroutine)
 
+    def test_task_specific_model_routing_and_legacy_override(self):
+        with patch.dict(os.environ,{'AI_PROVIDER':'ollama','OLLAMA_SCENARIO_MODEL':'scenario','OLLAMA_FORGE_MODEL':'forge','OLLAMA_BATTLE_MODEL':'battle'}):
+            self.assertEqual([model_for(t) for t in ('scenario','forge','battle')],['scenario','forge','battle'])
+        with patch.dict(os.environ,{'AI_PROVIDER':'ollama','OLLAMA_MODEL':'legacy'},clear=True):
+            self.assertEqual([model_for(t) for t in ('scenario','forge','battle')],['legacy']*3)
+        with patch.dict(os.environ,{'FORGE_AI_TIMEOUT':'20'}):
+            self.assertEqual(deadline('forge'),20)
+
     def test_ollama_sends_schema_without_key_and_parses_valid_case(self):
         calls=[]
         def handler(req):
@@ -125,9 +146,9 @@ class ProviderTest(unittest.TestCase):
             self.assertIsInstance(body['format'],dict)
             self.assertFalse(body['stream']);self.assertFalse(body['think'])
             self.assertEqual(body['model'],'qwen3:8b')
-            return httpx.Response(200,json={'message':{'content':json.dumps(SEEDS[0])}})
+            return httpx.Response(200,json={'message':{'content':json.dumps(GENERATED)}})
         result=self.run_mock(handler,generate_scenario('cybersecurity'),{'OLLAMA_MODEL':'qwen3:8b'})
-        self.assertEqual(result['scenario_id'],'seed-vendor');self.assertEqual(len(calls),1)
+        self.assertEqual(result['scenario_id'],'generated');self.assertEqual(result['evidence'][0]['id'],'E1');self.assertEqual(len(calls),1)
 
     def test_invalid_output_retries_once_then_falls_back(self):
         calls=[]
@@ -157,7 +178,7 @@ class ProviderTest(unittest.TestCase):
         self.assertEqual(result['mode'],'local')
 
     def test_valid_ollama_forge_and_battle(self):
-        review=local_forge(RARE,SEEDS[0],['E1','E2','E3'])
+        review={'verdict':'good','archetype':'INVESTIGATE','special_unlock':'special_rare','skill':'Independent verification','forged_because':'The response combines verification with a reversible check.','cited_text':RARE}
         result=self.run_mock(lambda r:httpx.Response(200,json={'message':{'content':json.dumps(review)}}),assess_written(RARE,SEEDS[0],['E1','E2','E3']))
         self.assertEqual(result['mode'],'ai');self.assertEqual(award(result,SEEDS[0])['rarity'],'RARE')
         battle=local_battle(BATTLE['INVESTIGATE_VERIFY'],'INVESTIGATE_VERIFY','Evidence')

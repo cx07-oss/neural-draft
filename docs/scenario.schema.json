@@ -1,168 +1,8 @@
 {
   "$defs": {
-    "Character": {
+    "GeneratedCondition": {
       "additionalProperties": false,
       "properties": {
-        "name": {
-          "maxLength": 50,
-          "minLength": 2,
-          "title": "Name",
-          "type": "string"
-        },
-        "role": {
-          "maxLength": 70,
-          "minLength": 2,
-          "title": "Role",
-          "type": "string"
-        },
-        "initial_message": {
-          "maxLength": 350,
-          "minLength": 20,
-          "title": "Initial Message",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "role",
-        "initial_message"
-      ],
-      "title": "Character",
-      "type": "object"
-    },
-    "Evidence": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "pattern": "^E[1-5]$",
-          "title": "Id",
-          "type": "string"
-        },
-        "title": {
-          "maxLength": 80,
-          "minLength": 3,
-          "title": "Title",
-          "type": "string"
-        },
-        "text": {
-          "maxLength": 650,
-          "minLength": 20,
-          "title": "Text",
-          "type": "string"
-        },
-        "reliability": {
-          "enum": [
-            "high",
-            "medium",
-            "low"
-          ],
-          "title": "Reliability",
-          "type": "string"
-        },
-        "tags": {
-          "items": {
-            "maxLength": 30,
-            "minLength": 2,
-            "type": "string"
-          },
-          "maxItems": 5,
-          "minItems": 1,
-          "title": "Tags",
-          "type": "array"
-        }
-      },
-      "required": [
-        "id",
-        "title",
-        "text",
-        "reliability",
-        "tags"
-      ],
-      "title": "Evidence",
-      "type": "object"
-    },
-    "Rubric": {
-      "additionalProperties": false,
-      "properties": {
-        "important_considerations": {
-          "items": {
-            "maxLength": 240,
-            "minLength": 2,
-            "type": "string"
-          },
-          "maxItems": 5,
-          "minItems": 2,
-          "title": "Important Considerations",
-          "type": "array"
-        },
-        "dangerous_assumptions": {
-          "items": {
-            "maxLength": 240,
-            "minLength": 2,
-            "type": "string"
-          },
-          "maxItems": 4,
-          "minItems": 1,
-          "title": "Dangerous Assumptions",
-          "type": "array"
-        },
-        "good_reasoning_signals": {
-          "items": {
-            "maxLength": 240,
-            "minLength": 2,
-            "type": "string"
-          },
-          "maxItems": 5,
-          "minItems": 2,
-          "title": "Good Reasoning Signals",
-          "type": "array"
-        },
-        "failure_signals": {
-          "items": {
-            "maxLength": 240,
-            "minLength": 2,
-            "type": "string"
-          },
-          "maxItems": 4,
-          "minItems": 1,
-          "title": "Failure Signals",
-          "type": "array"
-        }
-      },
-      "required": [
-        "important_considerations",
-        "dangerous_assumptions",
-        "good_reasoning_signals",
-        "failure_signals"
-      ],
-      "title": "Rubric",
-      "type": "object"
-    },
-    "Special": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "enum": [
-            "special_rare",
-            "special_epic"
-          ],
-          "title": "Id",
-          "type": "string"
-        },
-        "rarity": {
-          "enum": [
-            "RARE",
-            "EPIC"
-          ],
-          "title": "Rarity",
-          "type": "string"
-        },
-        "name_seed": {
-          "maxLength": 40,
-          "minLength": 3,
-          "title": "Name Seed",
-          "type": "string"
-        },
         "required_reasoning": {
           "items": {
             "enum": [
@@ -182,40 +22,93 @@
           "minItems": 3,
           "title": "Required Reasoning",
           "type": "array"
+        }
+      },
+      "required": [
+        "required_reasoning"
+      ],
+      "title": "GeneratedCondition",
+      "type": "object"
+    },
+    "GeneratedEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
         },
-        "ability_template": {
+        "text": {
+          "maxLength": 420,
+          "minLength": 20,
+          "title": "Text",
+          "type": "string"
+        },
+        "reliability": {
           "enum": [
-            "INVESTIGATE_VERIFY",
-            "CONTAIN_ISOLATE",
-            "CHALLENGE_COUNTERCLAIM",
-            "COORDINATE_RALLY",
-            "INVESTIGATE_CROSSCHECK",
-            "CONTAIN_STABILISE",
-            "CHALLENGE_FALSE_PREMISE",
-            "COORDINATE_DUAL_CHANNEL"
+            "high",
+            "medium",
+            "low"
           ],
-          "title": "Ability Template",
+          "title": "Reliability",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "maxLength": 30,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "text",
+        "reliability",
+        "tags"
+      ],
+      "title": "GeneratedEvidence",
+      "type": "object"
+    },
+    "GeneratedStakeholder": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 50,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "maxLength": 70,
+          "minLength": 2,
+          "title": "Role",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 260,
+          "minLength": 20,
+          "title": "Message",
           "type": "string"
         }
       },
       "required": [
-        "id",
-        "rarity",
-        "name_seed",
-        "required_reasoning",
-        "ability_template"
+        "name",
+        "role",
+        "message"
       ],
-      "title": "Special",
+      "title": "GeneratedStakeholder",
       "type": "object"
     }
   },
   "additionalProperties": false,
+  "description": "Compact model-owned content; Python derives IDs, rules, rarity and abilities.",
   "properties": {
-    "scenario_id": {
-      "pattern": "^[a-z0-9_-]{3,60}$",
-      "title": "Scenario Id",
-      "type": "string"
-    },
     "title": {
       "maxLength": 90,
       "minLength": 5,
@@ -234,92 +127,87 @@
       "title": "Domain",
       "type": "string"
     },
-    "difficulty": {
-      "enum": [
-        "STANDARD",
-        "COMPLEX"
-      ],
-      "title": "Difficulty",
-      "type": "string"
-    },
     "brief": {
-      "maxLength": 650,
+      "maxLength": 520,
       "minLength": 40,
       "title": "Brief",
       "type": "string"
     },
     "stakes": {
-      "maxLength": 250,
+      "maxLength": 200,
       "minLength": 15,
       "title": "Stakes",
       "type": "string"
     },
     "time_pressure": {
-      "maxLength": 150,
+      "maxLength": 120,
       "minLength": 10,
       "title": "Time Pressure",
       "type": "string"
     },
-    "characters": {
-      "items": {
-        "$ref": "#/$defs/Character"
-      },
-      "maxItems": 2,
-      "minItems": 1,
-      "title": "Characters",
-      "type": "array"
+    "stakeholder": {
+      "$ref": "#/$defs/GeneratedStakeholder"
     },
     "evidence": {
       "items": {
-        "$ref": "#/$defs/Evidence"
+        "$ref": "#/$defs/GeneratedEvidence"
       },
-      "maxItems": 5,
+      "maxItems": 3,
       "minItems": 3,
       "title": "Evidence",
       "type": "array"
     },
-    "hidden_rubric": {
-      "$ref": "#/$defs/Rubric"
-    },
-    "possible_archetypes": {
+    "good_signals": {
       "items": {
         "enum": [
-          "Investigate",
-          "Contain",
-          "Challenge",
-          "Coordinate"
+          "verification",
+          "containment",
+          "challenge",
+          "coordination",
+          "tradeoff",
+          "reversible",
+          "continuity",
+          "test",
+          "handoff"
         ],
         "type": "string"
       },
-      "maxItems": 4,
+      "maxItems": 5,
       "minItems": 2,
-      "title": "Possible Archetypes",
+      "title": "Good Signals",
       "type": "array"
     },
-    "special_card_conditions": {
+    "failure_signals": {
       "items": {
-        "$ref": "#/$defs/Special"
+        "maxLength": 240,
+        "minLength": 2,
+        "type": "string"
       },
-      "maxItems": 2,
+      "maxItems": 3,
       "minItems": 1,
-      "title": "Special Card Conditions",
+      "title": "Failure Signals",
       "type": "array"
+    },
+    "rare_condition": {
+      "$ref": "#/$defs/GeneratedCondition"
+    },
+    "epic_condition": {
+      "$ref": "#/$defs/GeneratedCondition"
     }
   },
   "required": [
-    "scenario_id",
     "title",
     "domain",
-    "difficulty",
     "brief",
     "stakes",
     "time_pressure",
-    "characters",
+    "stakeholder",
     "evidence",
-    "hidden_rubric",
-    "possible_archetypes",
-    "special_card_conditions"
+    "good_signals",
+    "failure_signals",
+    "rare_condition",
+    "epic_condition"
   ],
-  "title": "Scenario",
+  "title": "GeneratedScenario",
   "type": "object"
 }

@@ -2,6 +2,7 @@
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
 import json
+import logging
 import os
 from pathlib import Path
 import secrets
@@ -18,12 +19,13 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from abilities import ABILITIES, decorate, resolve_pair
 from reasoning import ai_available, assess_written, assess_battle, award, generate_scenario
-from providers import provider_status
+from providers import provider_status, warm_gameplay_model
 from scenarios import DOMAINS, SEEDS, Scenario, public_case
 from content import ACTIONS, CASE, CHOICES, EFFECTS, EVIDENCE, FRONTS, PATTERNS, RESPONSES, RUBRIC, deck, forged_record, make_card, resolve_play, strategy_observations, winner
 
 ROOT = Path(__file__).parent
 DB = os.getenv("NEURAL_DB", str(ROOT / "neural.sqlite3"))
+LOG = logging.getLogger("uvicorn.error")
 
 
 @contextmanager
@@ -79,7 +81,11 @@ def attempt_view(attempt):
 @asynccontextmanager
 async def lifespan(app):
     init_db()
+    warm_task = asyncio.create_task(warm_gameplay_model())
     yield
+    if not warm_task.done():
+        warm_task.cancel()
+    await asyncio.gather(warm_task, return_exceptions=True)
     tasks = list(room_tasks)
     for task in tasks:
         task.cancel()
@@ -186,6 +192,7 @@ async def forge_start(body: StartCase = StartCase(), x_player: str = Header(defa
                 previous = p["attempt"]["scenario"]["scenario_id"] if p["attempt"] else None
                 choices = [r["id"] for r in rows if r["id"] != previous] or [r["id"] for r in rows]
                 case_id = secrets.choice(choices)
+                LOG.info("[AI] Scenario loaded from cache - %s", case_id)
             conn.execute("UPDATE attempts SET status='abandoned' WHERE player=? AND card IS NULL AND status='active'", (x_player,))
             attempt_id = str(uuid.uuid4())
             conn.execute("INSERT INTO attempts (id,player,scenario_id) VALUES (?,?,?)", (attempt_id,x_player,case_id))
