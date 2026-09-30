@@ -10,7 +10,100 @@ const key = `neural-draft-${slot}`;
 const state = {token: localStorage.getItem(key) || '', profile: null, config: null, route: 'home', selectedCard: '',
   attempt: null, openEvidence: new Set(), domain: 'random', battleText: '', reason: '', question: '', busy: false,
   room: null, socket: null, connected: false, reconnect: null, ping: null,
-  playCard: '', front: '', lastRound: '', card: null, notice: ''};
+  playCard: '', front: '', lastRound: '', card: null, notice: '', focusStep: 0};
+const ACCESS_KEY = 'neural-draft-access';
+const access = {focus:false, motion:false, pace:false, large:false, contrast:false, sound:false, music:false, _saved:null};
+try { Object.assign(access, JSON.parse(localStorage.getItem(ACCESS_KEY) || 'null') || {}); } catch {}
+let audioCtx = null, musicNodes = null;
+function audioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone() {
+  if (!access.sound) return;
+  try {
+    const ctx = audioContext(); if (!ctx) return;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.frequency.value = 523; osc.type = 'sine'; gain.gain.value = 0.03;
+    osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.05);
+  } catch {}
+}
+function stopMusic() {
+  if (!musicNodes) return;
+  try { musicNodes.osc.stop(); } catch {}
+  musicNodes = null;
+}
+function startMusic() {
+  if (musicNodes || !access.music) return;
+  try {
+    const ctx = audioContext(); if (!ctx) return;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 98; gain.gain.value = 0.012;
+    osc.connect(gain); gain.connect(ctx.destination); osc.start();
+    musicNodes = {osc, gain};
+  } catch {}
+}
+function saveAccess() { try { localStorage.setItem(ACCESS_KEY, JSON.stringify(access)); } catch {} }
+function applyAccess() {
+  const root = document.documentElement;
+  if (!root || !root.classList) return;
+  root.classList.toggle('focus-mode', !!access.focus);
+  root.classList.toggle('reduce-motion', !!(access.focus || access.motion));
+  root.classList.toggle('large-text', !!(access.focus || access.large));
+  root.classList.toggle('high-contrast', !!(access.focus || access.contrast));
+  root.classList.toggle('calm-pace', !!(access.focus || access.pace));
+  const doc = root.ownerDocument;
+  doc?.querySelectorAll?.('[data-action="access-set"]').forEach(button => {
+    const on = !!access[button.dataset.id];
+    button.setAttribute('aria-pressed', String(on));
+    const label = button.querySelector('.access-state');
+    if (label) label.textContent = on ? 'On' : 'Off';
+  });
+  const opener = doc?.getElementById?.('focus-open');
+  if (opener) opener.classList.toggle('on', !!access.focus);
+  if (!access.music) stopMusic();
+}
+function toggleAccess(id) {
+  if (id === 'focus') {
+    if (!access.focus) {
+      access._saved = {motion:!!access.motion, pace:!!access.pace, large:!!access.large, contrast:!!access.contrast};
+      Object.assign(access, {focus:true, motion:true, pace:true, large:true, contrast:true});
+    } else {
+      const saved = access._saved || {};
+      Object.assign(access, {focus:false, motion:!!saved.motion, pace:!!saved.pace, large:!!saved.large, contrast:!!saved.contrast});
+    }
+  } else if (Object.prototype.hasOwnProperty.call(access, id)) access[id] = !access[id];
+  saveAccess();
+  applyAccess();
+  if (access.music) startMusic();
+  if (id === 'sound' && access.sound) playTone();
+  render();
+}
+function playerText(text) {
+  return clean(String(text || '')
+    .replace(/Local analysis recognises patterns approximately[^.]*/gi, '')
+    .replace(/it does not establish mastery\.?/gi, '')
+    .replace(/\b(local match analysis|approximate neural evaluation|provider unavailable|structured response|fallback mode|Neural evaluation unavailable)[^.]*/gi, ''));
+}
+function skillLabel(value) {
+  const labels = {verification:'Independent verification', evidence:'Evidence use', risk:'Risk awareness', tradeoff:'Risk awareness', reversible:'Reversible action', containment:'Proportionate response', coordination:'Coordination', challenge:'Constructive challenge'};
+  const text = String(value || '').split('/').map(part => labels[part.trim()] || part.trim().replaceAll('_', ' ')).filter(Boolean).join(', ');
+  return !text || text === 'No grounded pattern yet' ? 'Not shown yet' : text;
+}
+const FOCUS_LABELS = ['Read', 'Review evidence', 'Decide', 'Explain', 'Feedback'];
+function focusSteps(current, maxStep) {
+  return `<ol class="focus-steps" aria-label="Progress">${FOCUS_LABELS.map((label, index) => `<li class="${index === current ? 'current' : index < current ? 'done' : ''}"><button type="button" data-action="focus-step" data-id="${index}" ${index > maxStep ? 'disabled' : ''} ${index === current ? 'aria-current="step"' : ''}>${label}</button></li>`).join('')}</ol>`;
+}
+function feedbackBlock(review, reason, titles) {
+  const did = playerText(reason || review?.cited_player_text || review?.identified_action || 'No decision recorded yet');
+  const evidence = titles.length ? titles.map(clean).join(', ') : 'No evidence opened yet';
+  const skill = skillLabel(review?.demonstrated_skill);
+  const improve = playerText(review?.feedback) || (review?.verdict === 'fail' ? 'Name a case detail and the risk your action addresses.' : 'Carry this skill into the next case.');
+  return `<section class="structured-feedback" aria-label="Feedback"><div><h2>What you did</h2><p>${did}</p></div><div><h2>Evidence you used</h2><p>${evidence}</p></div><div><h2>Skill demonstrated</h2><p>${clean(skill)}</p></div><div><h2>What you can improve</h2><p>${improve}</p></div></section>`;
+}
 let toastTimer;
 function toast(message, error = false) { const t = $('#toast'); t.textContent = String(message).replaceAll(';', '.'); t.className = `toast ${error ? 'error' : ''}`; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, error ? 7500 : 4000); }
 async function api(path, body) {
@@ -56,9 +149,24 @@ function identityHTML() {
 function rubricHTML() {
   return `<details class="rubric"><summary>Assessment rubric</summary>${state.config.rubric.map(r=>`<div class="rubric-row"><strong>${clean(r.title)}</strong><ul>${r.levels.map(l=>`<li>${clean(l)}</li>`).join('')}</ul></div>`).join('')}<p class="small-copy muted">Each skill scores 0–2. Scores shape the card’s theme.</p></details>`;
 }
+function focusForgeHTML() {
+  const a=state.attempt,c=a.scenario,q=a.questions?.at(-1),review=a.assessment;
+  const step=Math.max(0, Math.min(review ? 4 : 3, state.focusStep || 0));
+  state.focusStep=step;
+  const titles=(a.evidence||[]).map(id=>c.evidence.find(item=>item.id===id)?.title||id);
+  const nav=`<div class="focus-nav">${step>0?`<button type="button" class="btn secondary" data-action="focus-back">Back</button>`:''}${step<3?`<button type="button" class="btn primary" data-action="focus-next">Next</button>`:''}</div>`;
+  let task='';
+  if(step===0) task=`<section class="focus-task"><p class="eyebrow">${clean(c.domain)}</p><h1>${clean(c.title)}</h1><p>${clean(c.brief)}</p><p class="case-context">${clean(c.time_pressure)} ${clean(c.stakes)}</p><p>Move on when you are ready.</p>${nav}</section>`;
+  else if(step===1) task=`<section class="focus-task"><h1>Review evidence</h1><p>${a.evidence.length} of ${c.evidence.length} opened.</p><div class="evidence-list">${c.evidence.map(e=>{const open=state.openEvidence.has(e.id),seen=a.evidence.includes(e.id);return `<article class="evidence ${open?'open':''}"><button class="inspect" type="button" data-action="inspect" data-id="${esc(e.id)}" aria-expanded="${open}" ${state.busy?'disabled':''}><h2>${clean(e.title)}</h2><span class="read-label">${seen?'Opened':'Open'}</span></button>${open?`<div class="evidence-body"><p>${clean(e.text)}</p></div>`:''}</article>`;}).join('')}</div><form id="ask-form" class="chat-form"><label for="question">Ask about the case</label><input id="question" maxlength="240" minlength="2" required value="${esc(state.question)}"><button class="btn secondary" ${state.busy?'disabled':''}>Ask</button></form>${q?`<p class="asked">${clean(q.question)}</p><p>${clean(q.answer)}</p>`:''}${nav}</section>`;
+  else if(step===2) task=`<section class="focus-task"><h1>Decide</h1><p>What would you do?</p><label for="reason">Your decision</label><textarea id="reason" maxlength="1200" rows="5" placeholder="Name the action.">${esc(state.reason)}</textarea>${nav}</section>`;
+  else if(step===3) task=`<section class="focus-task"><h1>Explain</h1><p>Add the evidence and the risk.</p><form id="forge-form"><label for="reason">Your explanation</label><textarea id="reason" maxlength="1200" rows="6" placeholder="Name the evidence and the risk." ${state.busy||!a.can_retry?'disabled':''}>${esc(state.reason)}</textarea>${state.busy?`<div class="forge-progress" role="status"><strong>Analysing decision</strong><p>Take the time you need.</p></div>`:''}<div class="focus-nav"><button type="button" class="btn secondary" data-action="focus-back">Back</button><button class="btn primary" ${state.busy||!a.can_retry?'disabled':''}>${state.busy?'Analysing decision':review?'Analyse again':'Analyse and forge'}</button></div></form></section>`;
+  else task=`<section class="focus-task"><h1>${review?.verdict==='fail'?'Make the decision more specific':'Feedback'}</h1>${feedbackBlock(review, state.reason, titles)}<div class="focus-nav"><button type="button" class="btn secondary" data-action="focus-step" data-id="${a.can_retry?3:0}">${a.can_retry?'Back to explain':'Read again'}</button><button type="button" class="btn primary" data-action="new-case">New case</button></div></section>`;
+  return `${focusSteps(step, review ? 4 : 3)}<div class="case-switch"><button class="btn small secondary" type="button" data-action="new-case" ${state.busy?'disabled':''}>New case</button></div>${task}`;
+}
 function forgeHTML() {
   if (!state.profile) return identityHTML();
   if (!state.attempt) return '<div class="loading">Opening case…</div>';
+  if (access.focus) return focusForgeHTML();
   const a=state.attempt,c=a.scenario,q=a.questions?.at(-1),review=a.assessment;
   return `<div class="breadcrumb"><span class="current">01 Case</span><span>02 Card</span><span>03 Battle</span></div>
   <div class="case-switch"><label for="case-domain">Case world</label><select id="case-domain"><option value="random">Surprise me</option>${state.config.domains.map(d=>`<option value="${d}" ${state.domain===d?'selected':''}>${clean(d)}</option>`).join('')}</select><button class="btn small secondary" data-action="new-case" ${state.busy?'disabled':''}>New case</button>${state.config.ai_status?.scenario_available?`<button class="text-btn" data-action="generate-case" ${state.busy?'disabled':''}>Generate case</button>`:''}<button class="text-btn" data-action="demo-case" ${state.busy?'disabled':''}>Demo case</button></div>
@@ -102,6 +210,11 @@ function frameworkHTML(cards=[]) {
 }
 function revealHTML() {
   const card=state.card; if (!card) return '<div class="loading">Loading card…</div>';
+  if (access.focus) {
+    const review=card.assessment||{}, provenance=card.provenance||{};
+    const named=(review.evidence_ids||[]).map(id=>provenance.evidence_snapshot?.find(item=>item.id===id)?.title||id);
+    return `${focusSteps(4, 4)}<section class="focus-task"><h1>${cardName(card)}</h1>${earnedHTML(card)}${feedbackBlock(review, provenance.reason, named)}<div class="reveal-ability"><span class="tag">Ability</span><strong>${clean(card.ability_name)}</strong><p>${abilityCopy(card)}</p></div><div class="focus-nav"><button class="btn primary" data-go="collection">Collection</button><button class="btn secondary" data-go="forge">New case</button></div></section>`;
+  }
   return `<div class="breadcrumb"><span>01 Case</span><span class="current">02 Card</span><span>03 Battle</span></div><section class="reveal-layout"><div><div class="reveal-stage">${cardHTML(card)}</div></div><div class="reveal-copy"><div class="eyebrow">${card.demo?'Practice card':'Card forged'}</div><h1>${cardName(card)}</h1>${earnedHTML(card)}<div class="reveal-ability"><span class="tag">Ability</span><strong>${clean(card.ability_name)}</strong><p>${abilityCopy(card)}</p></div>${provenanceHTML(card)}<div class="skill-link"><span class="tag">Use it in battle</span><p>${clean(skillLink(card))}</p></div><div class="button-row"><button class="btn primary" data-go="collection">Play card</button><button class="text-btn" data-go="forge">New case</button></div></div></section>`;
 }
 function collectionHTML() {
@@ -138,7 +251,8 @@ function duelHTML() {
   if(r.phase==='lobby') return lobbyHTML();
   if(r.phase==='result') return resultsHTML();
   const current=r.deck.find(c=>c.id===state.playCard), locked=r.locked, canLock=current&&state.front&&state.connected&&r.opponent_online&&!locked;
-  return `<div class="duel-head"><div><div class="eyebrow">Room ${r.code}</div><h1>The borrowed badge</h1></div><div class="duel-meta"><div class="round-pips">${[1,2,3,4].map(n=>`<i class="${n<=r.round?'on':''}"></i>`).join('')}</div><div>Round ${r.round} / 4 · ${connectionHTML()}</div></div></div>
+  const focusNote=access.focus?`<p class="focus-now">${r.phase==='reveal'?'Feedback':'Your move'}. No timer. Take the time you need.</p>`:'';
+  return `${focusNote}<div class="duel-head"><div><div class="eyebrow">Room ${r.code}</div><h1>The borrowed badge</h1></div><div class="duel-meta"><div class="round-pips">${[1,2,3,4].map(n=>`<i class="${n<=r.round?'on':''}"></i>`).join('')}</div><div>Round ${r.round} / 4 · ${connectionHTML()}</div></div></div>
   <section class="case-bar"><div class="case-copy"><span class="tag">Battle case</span><p>${clean(state.config.case.summary)}</p></div><details><summary>View clues</summary><div class="clue-list">${state.config.case.clues.map(c=>`<div><strong>${clean(c.title)}</strong><p>${clean(c.text)}</p></div>`).join('')}</div></details></section>
   <div class="player-line"><span class="accent">${clean(r.names[r.seat])} · You</span><span class="amber">${clean(r.names[1-r.seat])} · ${r.opponent_online?'Online':'Disconnected'}</span></div>${frontsHTML(r.phase==='choose')}
   ${r.phase==='reveal'?`<section class="round-reveal"><div class="section-head"><h2>Round ${r.round} resolved</h2><button class="btn primary" data-action="ready" ${r.ready||!state.connected?'disabled':''}>${r.ready?'Waiting…':'Next round'}</button></div><div class="plays">${playHTML(r.history.at(-1),r.seat)}${playHTML(r.history.at(-1),1-r.seat)}</div></section>`:
@@ -173,7 +287,10 @@ async function routeChanged() {
     if(state.route==='forge'&&state.profile&&!state.attempt){render();state.attempt=await api('/forge/start',{generate:false,known_good:true});}
     if(state.route==='collection'&&state.token) state.profile=await api('/me');
     if(state.route==='reveal') {state.card=state.profile?.cards.find(c=>c.id===id)||state.card;if(!state.card){nav('collection');return;}}
-    if(state.route==='forge'&&state.attempt)state.reason=sessionStorage.getItem(`${key}-draft-${state.attempt.id}`)||state.attempt.response||'';
+    if(state.route==='forge'&&state.attempt){
+      const saved=sessionStorage.getItem(`${key}-draft-${state.attempt.id}`)||state.attempt.response||'';
+      state.reason=state.attempt.can_retry===false?'':saved;
+    }
     render();
     if(state.route==='room') {const code=(id||sessionStorage.getItem(`${key}-room`)||'').toUpperCase();if(!code||!state.token){nav('collection');return;}connect(code);}
     window.scrollTo(0,0);
@@ -223,15 +340,26 @@ document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;
   const {action,id}=button.dataset;
   try{
-    if(action==='inspect'){
+    if(action==='access-open'){
+      const panel=document.getElementById('access-panel'), opener=document.getElementById('focus-open');
+      if(!panel) return;
+      const open=panel.hasAttribute('hidden');
+      panel.toggleAttribute('hidden', !open);
+      opener?.setAttribute('aria-expanded', String(open));
+      return;
+    }else if(action==='access-set'){toggleAccess(id);return;}
+    else if(action==='focus-step'){state.focusStep=Number(id)||0;render();window.scrollTo(0,0);return;}
+    else if(action==='focus-next'){state.focusStep=Math.min(4,(state.focusStep||0)+1);render();window.scrollTo(0,0);return;}
+    else if(action==='focus-back'){state.focusStep=Math.max(0,(state.focusStep||0)-1);render();window.scrollTo(0,0);return;}
+    else if(action==='inspect'){
       if(state.openEvidence.has(id))state.openEvidence.delete(id);else{const seen=await api('/forge/inspect',{attempt:state.attempt.id,evidence:id});state.attempt.evidence=seen.evidence;state.openEvidence.add(id);}render();
     }else if(['new-case','generate-case','demo-case'].includes(action)){
       if(state.busy)return;state.busy=true;render();
-      try{state.attempt=await api('/forge/start',{new:true,domain:state.domain,generate:action==='generate-case'&&state.config.ai,known_good:action==='demo-case'});state.reason='';state.question='';state.openEvidence.clear();if(state.attempt.message)toast(state.attempt.message);}finally{state.busy=false;render();}
+      try{state.attempt=await api('/forge/start',{new:true,domain:state.domain,generate:action==='generate-case'&&state.config.ai,known_good:action==='demo-case'});state.reason='';state.question='';state.focusStep=0;state.openEvidence.clear();if(state.attempt.message)toast(state.attempt.message);}finally{state.busy=false;render();}
     }
     else if(action==='ask'){await askQuestion(button.dataset.question);}
     else if(action==='battle-nav'){const code=sessionStorage.getItem(`${key}-room`);if(code)nav(`room/${code}`);else{nav('collection');toast('Create or join a room to battle.');}}
-    else if(action==='profile-nav'){nav('collection/profile');setTimeout(()=>$('.decision-profile')?.scrollIntoView({behavior:'smooth'}),80);}
+    else if(action==='profile-nav'){nav('collection/profile');setTimeout(()=>$('.decision-profile')?.scrollIntoView({behavior:document.documentElement.classList.contains('reduce-motion')?'auto':'smooth'}),80);}
     else if(action==='select-card'){state.selectedCard=id;render();}
     else if(action==='view-card'){state.card=state.profile.cards.find(c=>c.id===id);nav(`reveal/${id}`);}
     else if(action==='create-room'){
@@ -260,16 +388,23 @@ document.addEventListener('submit',async event=>{
     state.busy=true;render();
     try{const result=await api('/forge',{attempt:state.attempt.id,response:state.reason.trim()});
       if(result.card){state.card=result.card;state.profile=await api('/me');sessionStorage.removeItem(`${key}-draft-${state.attempt.id}`);state.attempt=null;state.reason='';state.openEvidence.clear();nav(`reveal/${result.card.id}`);}
-      else{state.attempt={...state.attempt,assessment:result.assessment,can_retry:result.can_retry,retry_count:result.retry_count};toast(result.can_retry?'Make the decision more specific.':'Start a new case to try again.');}
+      else{state.attempt={...state.attempt,assessment:result.assessment,can_retry:result.can_retry,retry_count:result.retry_count};if(access.focus)state.focusStep=4;toast(result.can_retry?'Make the decision more specific.':'Start a new case to try again.');}
     }catch(e){toast(e.message,true);}finally{state.busy=false;render();}
   }else if(id==='join-form'){
     const code=$('#room-code').value.trim().toUpperCase();state.busy=true;
     try{await api(`/rooms/${encodeURIComponent(code)}/join`,{card_id:state.selectedCard});nav(`room/${code}`);}catch(e){toast(e.message,true);}finally{state.busy=false;}
   }
 });
+document.addEventListener('pointerdown',()=>{if(access.music)startMusic();},{once:true});
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape') return;
+  const panel=document.getElementById('access-panel');
+  if(panel && !panel.hasAttribute('hidden')){panel.hidden=true;document.getElementById('focus-open')?.setAttribute('aria-expanded','false');}
+});
 window.addEventListener('hashchange',routeChanged);
 window.addEventListener('online',()=>{if(state.route==='room'&&!state.connected)connect(sessionStorage.getItem(`${key}-room`));});
 async function boot(){
+  applyAccess();
   try{
     state.config=await api('/config');
     if(state.token){try{state.profile=await api('/me');state.attempt=state.profile.attempt;}catch(e){if(e.status!==401)throw e;state.token='';localStorage.removeItem(key);}}
