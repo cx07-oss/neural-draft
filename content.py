@@ -74,7 +74,7 @@ def strategy_observations(history, seat):
     matched = sum(h["effects"][seat]["context_match"] for h in history)
     observations = [
         {"text": f"You put pressure on {len(set(fronts))} of 3 fronts across {len(fronts)} rounds.", "rounds": [h["round"] for h in history], "skills": ["Risk allocation"]},
-        {"text": f"{matched} of {len(history)} case choices activated their contextual bonus.", "rounds": [h["round"] for h in history if h["effects"][seat]["context_match"]], "skills": ["Reasoning under uncertainty"]},
+        {"text": f"{matched} of {len(history)} written decisions fully activated their skill effect.", "rounds": [h["round"] for h in history if h["effects"][seat]["context_match"]], "skills": ["Reasoning under uncertainty"]},
     ]
     for previous, current in zip(history, history[1:]):
         if previous["effects"][seat]["delta"][previous["plays"][seat]["front"]] < previous["effects"][1-seat]["delta"][previous["plays"][seat]["front"]] and current["plays"][seat]["front"] != previous["plays"][seat]["front"]:

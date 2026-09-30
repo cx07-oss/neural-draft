@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "effect_result": {
+      "enum": [
+        "success",
+        "partial",
+        "fail"
+      ],
+      "title": "Effect Result",
+      "type": "string"
+    },
+    "effect_quality": {
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Effect Quality",
+      "type": "integer"
+    },
+    "reasoning_tag": {
+      "maxLength": 90,
+      "minLength": 3,
+      "title": "Reasoning Tag",
+      "type": "string"
+    },
+    "validated_effect_id": {
+      "enum": [
+        "INVESTIGATE_VERIFY",
+        "CONTAIN_ISOLATE",
+        "CHALLENGE_COUNTERCLAIM",
+        "COORDINATE_RALLY",
+        "INVESTIGATE_CROSSCHECK",
+        "CONTAIN_STABILISE",
+        "CHALLENGE_FALSE_PREMISE",
+        "COORDINATE_DUAL_CHANNEL"
+      ],
+      "title": "Validated Effect Id",
+      "type": "string"
+    },
+    "cited_player_text": {
+      "maxLength": 400,
+      "title": "Cited Player Text",
+      "type": "string"
+    },
+    "feedback": {
+      "maxLength": 250,
+      "minLength": 10,
+      "title": "Feedback",
+      "type": "string"
+    }
+  },
+  "required": [
+    "effect_result",
+    "effect_quality",
+    "reasoning_tag",
+    "validated_effect_id",
+    "cited_player_text",
+    "feedback"
+  ],
+  "title": "BattleReview",
+  "type": "object"
+}

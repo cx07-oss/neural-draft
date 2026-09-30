@@ -1,0 +1,325 @@
+{
+  "$defs": {
+    "Character": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 50,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "maxLength": 70,
+          "minLength": 2,
+          "title": "Role",
+          "type": "string"
+        },
+        "initial_message": {
+          "maxLength": 350,
+          "minLength": 20,
+          "title": "Initial Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "initial_message"
+      ],
+      "title": "Character",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^E[1-5]$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 650,
+          "minLength": 20,
+          "title": "Text",
+          "type": "string"
+        },
+        "reliability": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Reliability",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "maxLength": 30,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "text",
+        "reliability",
+        "tags"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Rubric": {
+      "additionalProperties": false,
+      "properties": {
+        "important_considerations": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 2,
+          "title": "Important Considerations",
+          "type": "array"
+        },
+        "dangerous_assumptions": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Dangerous Assumptions",
+          "type": "array"
+        },
+        "good_reasoning_signals": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 2,
+          "title": "Good Reasoning Signals",
+          "type": "array"
+        },
+        "failure_signals": {
+          "items": {
+            "maxLength": 240,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Failure Signals",
+          "type": "array"
+        }
+      },
+      "required": [
+        "important_considerations",
+        "dangerous_assumptions",
+        "good_reasoning_signals",
+        "failure_signals"
+      ],
+      "title": "Rubric",
+      "type": "object"
+    },
+    "Special": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "enum": [
+            "special_rare",
+            "special_epic"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "rarity": {
+          "enum": [
+            "RARE",
+            "EPIC"
+          ],
+          "title": "Rarity",
+          "type": "string"
+        },
+        "name_seed": {
+          "maxLength": 40,
+          "minLength": 3,
+          "title": "Name Seed",
+          "type": "string"
+        },
+        "required_reasoning": {
+          "items": {
+            "enum": [
+              "verification",
+              "containment",
+              "challenge",
+              "coordination",
+              "tradeoff",
+              "reversible",
+              "continuity",
+              "test",
+              "handoff"
+            ],
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 3,
+          "title": "Required Reasoning",
+          "type": "array"
+        },
+        "ability_template": {
+          "enum": [
+            "INVESTIGATE_VERIFY",
+            "CONTAIN_ISOLATE",
+            "CHALLENGE_COUNTERCLAIM",
+            "COORDINATE_RALLY",
+            "INVESTIGATE_CROSSCHECK",
+            "CONTAIN_STABILISE",
+            "CHALLENGE_FALSE_PREMISE",
+            "COORDINATE_DUAL_CHANNEL"
+          ],
+          "title": "Ability Template",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "rarity",
+        "name_seed",
+        "required_reasoning",
+        "ability_template"
+      ],
+      "title": "Special",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "scenario_id": {
+      "pattern": "^[a-z0-9_-]{3,60}$",
+      "title": "Scenario Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 90,
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "domain": {
+      "enum": [
+        "cybersecurity",
+        "engineering",
+        "product",
+        "logistics",
+        "scientific",
+        "coordination"
+      ],
+      "title": "Domain",
+      "type": "string"
+    },
+    "difficulty": {
+      "enum": [
+        "STANDARD",
+        "COMPLEX"
+      ],
+      "title": "Difficulty",
+      "type": "string"
+    },
+    "brief": {
+      "maxLength": 650,
+      "minLength": 40,
+      "title": "Brief",
+      "type": "string"
+    },
+    "stakes": {
+      "maxLength": 250,
+      "minLength": 15,
+      "title": "Stakes",
+      "type": "string"
+    },
+    "time_pressure": {
+      "maxLength": 150,
+      "minLength": 10,
+      "title": "Time Pressure",
+      "type": "string"
+    },
+    "characters": {
+      "items": {
+        "$ref": "#/$defs/Character"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "title": "Characters",
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "maxItems": 5,
+      "minItems": 3,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "hidden_rubric": {
+      "$ref": "#/$defs/Rubric"
+    },
+    "possible_archetypes": {
+      "items": {
+        "enum": [
+          "Investigate",
+          "Contain",
+          "Challenge",
+          "Coordinate"
+        ],
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 2,
+      "title": "Possible Archetypes",
+      "type": "array"
+    },
+    "special_card_conditions": {
+      "items": {
+        "$ref": "#/$defs/Special"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "title": "Special Card Conditions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "scenario_id",
+    "title",
+    "domain",
+    "difficulty",
+    "brief",
+    "stakes",
+    "time_pressure",
+    "characters",
+    "evidence",
+    "hidden_rubric",
+    "possible_archetypes",
+    "special_card_conditions"
+  ],
+  "title": "Scenario",
+  "type": "object"
+}

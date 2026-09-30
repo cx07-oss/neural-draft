@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "SignalCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "signal": {
+          "enum": [
+            "verification",
+            "containment",
+            "challenge",
+            "coordination",
+            "tradeoff",
+            "reversible",
+            "continuity",
+            "test",
+            "handoff"
+          ],
+          "title": "Signal",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 700,
+          "minLength": 3,
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signal",
+        "quote"
+      ],
+      "title": "SignalCitation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "enum": [
+        "excellent",
+        "good",
+        "partial",
+        "fail"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "archetype": {
+      "anyOf": [
+        {
+          "enum": [
+            "Investigate",
+            "Contain",
+            "Challenge",
+            "Coordinate"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Archetype"
+    },
+    "reasoning_score": {
+      "title": "Reasoning Score",
+      "type": "integer"
+    },
+    "evidence_use": {
+      "title": "Evidence Use",
+      "type": "integer"
+    },
+    "risk_awareness": {
+      "title": "Risk Awareness",
+      "type": "integer"
+    },
+    "adaptability": {
+      "title": "Adaptability",
+      "type": "integer"
+    },
+    "identified_action": {
+      "maxLength": 240,
+      "minLength": 3,
+      "title": "Identified Action",
+      "type": "string"
+    },
+    "demonstrated_skill": {
+      "maxLength": 90,
+      "minLength": 3,
+      "title": "Demonstrated Skill",
+      "type": "string"
+    },
+    "forged_because": {
+      "maxLength": 450,
+      "minLength": 10,
+      "title": "Forged Because",
+      "type": "string"
+    },
+    "feedback": {
+      "maxLength": 400,
+      "minLength": 10,
+      "title": "Feedback",
+      "type": "string"
+    },
+    "special_unlock": {
+      "anyOf": [
+        {
+          "enum": [
+            "special_rare",
+            "special_epic"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Special Unlock"
+    },
+    "cited_player_text": {
+      "maxLength": 700,
+      "title": "Cited Player Text",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "signals": {
+      "items": {
+        "$ref": "#/$defs/SignalCitation"
+      },
+      "maxItems": 9,
+      "title": "Signals",
+      "type": "array"
+    },
+    "card_name": {
+      "maxLength": 55,
+      "minLength": 3,
+      "title": "Card Name",
+      "type": "string"
+    },
+    "flavour": {
+      "maxLength": 140,
+      "minLength": 5,
+      "title": "Flavour",
+      "type": "string"
+    }
+  },
+  "required": [
+    "verdict",
+    "confidence",
+    "archetype",
+    "reasoning_score",
+    "evidence_use",
+    "risk_awareness",
+    "adaptability",
+    "identified_action",
+    "demonstrated_skill",
+    "forged_because",
+    "feedback",
+    "special_unlock",
+    "cited_player_text",
+    "evidence_ids",
+    "signals",
+    "card_name",
+    "flavour"
+  ],
+  "title": "ForgeReview",
+  "type": "object"
+}

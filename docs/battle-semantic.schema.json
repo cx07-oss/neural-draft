@@ -1,0 +1,26 @@
+{
+  "additionalProperties": false,
+  "description": "Short model response; server adds the fixed ability ID and feedback envelope.",
+  "properties": {
+    "effect_result": {
+      "enum": [
+        "success",
+        "partial",
+        "fail"
+      ],
+      "title": "Effect Result",
+      "type": "string"
+    },
+    "cited_player_text": {
+      "maxLength": 90,
+      "title": "Cited Player Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "effect_result",
+    "cited_player_text"
+  ],
+  "title": "BattleSemantic",
+  "type": "object"
+}
